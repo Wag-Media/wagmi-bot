@@ -1,6 +1,6 @@
 {
   "name": "wagmi-media-client",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "scripts": {
     "serve": "grep '^VUE_APP_' ../.env > .env && vue-cli-service serve",
     "build": "grep '^VUE_APP_' ../.env > .env && vue-cli-service build",

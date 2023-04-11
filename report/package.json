@@ -1,6 +1,6 @@
 {
   "name": "wagmi-media-report",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "scripts": {
     "serve": "grep '^VUE_APP_API_REPORT_URL' ../.env > .env && vue-cli-service serve",
     "build": "grep '^VUE_APP_API_REPORT_URL' ../.env > .env && vue-cli-service build",

@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## 1.2.3
+
+### Changes
+* API: Add history scripts for analytics backend
+* Client/Report: Modified nginx configuration
+* Gobal: Templatize application stack
+* API: Added more logging information around transaction handling
+* Report: Added Modsecurity configurations
+
+### Bugfixes
+* Bot: Version lock node build to 18.15.0
+* API: Version lock node build to 18.15.0
+* API: Committed previous hotfix for handling an integer as fixed point
+
+
 ## 1.2.2
 
 ### Changes
