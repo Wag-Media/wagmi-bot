@@ -660,7 +660,7 @@ class TransactionHandler {
     }
 
     convertAmount(amount, decimals) {
-        return Web3.utils.toBN("0x" + (amount * 10 ** decimals).toString(16));
+        return Web3.utils.toBN("0x" + (amount.toFixed(decimals) * 10 ** decimals).toString(16));
     }
 }
 
