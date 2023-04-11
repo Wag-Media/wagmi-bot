@@ -1,27 +1,42 @@
 version: "3.5"
 services:
-    db:
-        container_name: db
+    certbot-${PROJECT_SHORT_NAME}:
+        container_name: certbot-${PROJECT_SHORT_NAME}
+        image: certbot/dns-cloudflare
+        volumes:
+            - ./certbot_etc:/etc/letsencrypt:rw
+            - ./.cloudflare.ini:/root/.cloudflare.ini:ro
+            - /var/log/wag/letsencrypt:/var/log/letsencrypt:rw
+        dns:
+            - 1.1.1.1
+            - 1.0.0.1
+        command: >-
+              certonly --dns-cloudflare
+              --dns-cloudflare-credentials /root/.cloudflare.ini
+              --dns-cloudflare-propagation-seconds 15
+              --email 0xtaylor@thechaosdao.com
+              --agree-tos --no-eff-email
+              --keep-until-expiring
+              -d ${DOMAIN}
+              -d admin.${DOMAIN}
+
+    db-${PROJECT_SHORT_NAME}:
+        container_name: db-${PROJECT_SHORT_NAME}
         image: mariadb:10.5.16
         restart: always
         command: --default-authentication-plugin=mysql_native_password
-        ports:
-            - 3306:3306
         environment:
             MYSQL_ROOT_PASSWORD: ${DATABASE_ROOT_PASSWORD}
             MYSQL_USER: ${DATABASE_USER}
             MYSQL_PASSWORD: ${DATABASE_PASSWORD}
             MYSQL_DATABASE: ${DATABASE_DBNAME}
         volumes:
-            - ./mysql/setup.sql:/docker-entrypoint-initdb.d/setup.sql
-            - ./volumes/db/data:/var/lib/mysql
-    api:
-        container_name: api
+            - ./mysql/setup.sql:/docker-entrypoint-initdb.d/setup.sql:ro
+            - ./volumes/db/data:/var/lib/mysql:rw
+    api-${PROJECT_SHORT_NAME}:
+        container_name: api-${PROJECT_SHORT_NAME}
         build: ./api
         restart: always
-        ports:
-            - 8081:8081
-            - 8086:8086
         environment:
             ENVIRONMENT: ${ENVIRONMENT}
             DATABASE_USER: ${DATABASE_USER}
@@ -40,15 +55,13 @@ services:
             BOT_TOKEN: ${BOT_TOKEN}
             BOT_GUILD_ID: ${BOT_GUILD_ID}
         depends_on:
-            - db
+            - db-${PROJECT_SHORT_NAME}
         volumes:
             - ./api:/app
-    bot:
-        container_name: bot
+    bot-${PROJECT_SHORT_NAME}:
+        container_name: bot-${PROJECT_SHORT_NAME}
         build: ./bot
         restart: always
-        ports:
-            - 8085:8085
         environment:
             ENVIRONMENT: ${ENVIRONMENT}
             API_KEY: ${API_KEY}
@@ -56,34 +69,56 @@ services:
             BOT_GUILD_ID: ${BOT_GUILD_ID}
             BOT_PREFIX: ${BOT_PREFIX}
         depends_on:
-            - db
-            - api
+            - db-${PROJECT_SHORT_NAME}
+            - api-${PROJECT_SHORT_NAME}
         volumes:
             - ./bot:/app
-    client:
-        container_name: client
+    client-${PROJECT_SHORT_NAME}:
+        container_name: client-${PROJECT_SHORT_NAME}
         build: ./client
         restart: always
         ports:
-            - 8080:8080
+            - 0.0.0.0:${ADMIN_PORT}:8083
         volumes:
             - ./client/dist:/usr/share/nginx/html
-            - ./client/log/nginx:/var/log/nginx
+            - /var/log/wag/client:/var/log/nginx:rw
+            - ./client/nginx/default.conf:/etc/nginx/conf.d/nginx.conf:ro
+            - ./client/cache:/var/cache/nginx/proxy_temp:rw
+            - ./certbot_etc:/etc/letsencrypt:ro
         depends_on:
-            - api
-            - bot
-    report:
-        container_name: report
+            - api-${PROJECT_SHORT_NAME}
+            - bot-${PROJECT_SHORT_NAME}
+    report-${PROJECT_SHORT_NAME}:
+        container_name: report-${PROJECT_SHORT_NAME}
         build: ./report
         restart: always
         ports:
-            - 8082:8082
+            - 0.0.0.0:8443:8082
         volumes:
             - ./report/dist:/usr/share/nginx/html
-            - ./report/log/nginx:/var/log/nginx
-            - ./report/conf/nginx/conf.d/default.conf:/etc/nginx/conf.d/default.conf
-            - ./report/conf/nginx/nginx.conf:/etc/nginx/nginx.conf
-            - ./report/conf/modsec:/etc/nginx/modsec
-            - ./report/conf/owasp/crs-setup.conf:/usr/local/owasp-modsecurity-crs/crs-setup.conf
+            - /var/log/wag/report:/var/log/nginx:rw
+            - ./client/cache:/var/cache/nginx/proxy_temp:rw
+            - ./certbot_etc:/etc/letsencrypt:ro
+            - ./report/conf/nginx/conf.d/default.conf:/etc/nginx/conf.d/default.conf:ro
+            - ./report/conf/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+            - ./report/conf/modsec:/etc/nginx/modsec:ro
+            - ./report/conf/owasp/crs-setup.conf:/usr/local/owasp-modsecurity-crs/crs-setup.conf:ro
         depends_on:
-            - api
+            - api-${PROJECT_SHORT_NAME}
+        dns:
+            - 1.1.1.1
+            - 1.0.0.1
+#   phpmyadmin-${PROJECT_SHORT_NAME}:
+#       container_name: phpmyadmin-${PROJECT_SHORT_NAME}
+#       image: phpmyadmin/phpmyadmin:latest
+#       depends_on:
+#          - db
+#       environment:
+#          PMA_HOST: db
+#          PMA_USER: ${DATABASE_USER}
+#          PMA_PASSWORD: ${DATABASE_PASSWORD}
+#          PMA_PORT: 3306
+#       restart: 'no'
+#       ports:
+#          - 8090:80
+

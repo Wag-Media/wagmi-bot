@@ -11,7 +11,7 @@ const API = function () {
 	this.treasuryTiers = {}
 
 	this.client = axios.create({
-		baseURL: 'http://api:8081/api/',
+		baseURL: 'http://api-TEMPLATE:8081/api/',
 	})
 
 	this.request = async (endpoint, data = {}, method = 'GET') => {

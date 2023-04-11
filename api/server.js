@@ -20,7 +20,7 @@ const server = http.createServer()
 const { Server } = require("socket.io")
 const io = new Server(server, { path: '/' })
 
-require("./lib/io")("ws://bot:8085/")
+require("./lib/io")("ws://bot-TEMPLATE:8085/")
 
 const txHandler = require("./lib/txhandler")
 

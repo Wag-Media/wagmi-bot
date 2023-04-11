@@ -40,12 +40,12 @@ class InstantElevationAction {
 		try {
 			/** Only elevate from news or content channels and set the elevation title **/
 			let elevate = false
-			let elevationTitle = "Top Story 🔥"
+			let elevationTitle = "Special Delivery"
 			if (config.news_channel_ids.includes(msg.channelId)) {
 				elevate = true
 			} else if (config.content_channel_ids.includes(msg.channelId)) {
 				elevate = true
-				elevationTitle = "Top Content 🔥"
+				elevationTitle = "Special Delivery"
 			}
 
 			if (elevate) {

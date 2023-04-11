@@ -66,7 +66,7 @@ class DirectorElevationAction {
 				let emoji = await this.client.emojis.cache.get(messageReaction._emoji.id)
 	
 				/** Check if message has already been elevated, if already elevated do nothing **/
-				API.request("http://api:8081/api/elevation/findOne", {
+				API.request("http://api-TEMPLATE:8081/api/elevation/findOne", {
 					oldMessageId: messageReaction.message.id,
 					newChannelId: elevationInfo.channelId
 				}, "POST").then(async response => {
@@ -77,7 +77,7 @@ class DirectorElevationAction {
 							.setColor('#0099ff')
 							.setAuthor({ name: `${messageReaction.message.author.username} in  #${messageReaction.message.channel.name}` })
 							.setURL(messageReaction.message.url)
-							.setTitle('Top ' + (isContent ? 'Content' : 'Story') + ' <:' + emoji.identifier + '>')
+							.setTitle((isContent ? 'Special Delivery' : 'Special Delivery') + ' <:' + emoji.identifier + '>')
 							.setDescription(messageReaction.message.content)
 							.setTimestamp()
 	
@@ -95,7 +95,7 @@ class DirectorElevationAction {
 						}
 	
 						/** Submit elevation to API **/
-						await API.request("http://api:8081/api/elevation/insert", {
+						await API.request("http://api-TEMPLATE:8081/api/elevation/insert", {
 							oldMessageId: messageReaction.message.id,
 							oldChannelId: messageReaction.message.channelId,
 							newChannelId: elevationInfo.channelId,

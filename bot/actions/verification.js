@@ -75,7 +75,7 @@ class VerificationAction {
 		await button.deferReply()
 
 		/** Get current user data **/
-		API.request(`http://api:8081/api/user/${button.user.id}`).then(async apiUser => {
+		API.request(`http://api-TEMPLATE:8081/api/user/${button.user.id}`).then(async apiUser => {
 			/** Build input dialog message based on current data **/
 			let type = 'EVM address'
 			let currentValue = apiUser.data.evmAddress
@@ -135,7 +135,7 @@ class VerificationAction {
 					}
 
 					if (isValid) {
-						API.request('http://api:8081/api/user/insertOrUpdate', data, 'POST').then(response => {
+						API.request('http://api-TEMPLATE:8081/api/user/insertOrUpdate', data, 'POST').then(response => {
 							msg.reply(`Your ${type} has been changed to: ${msg.content}`)
 
 							let { config } = API.getConfiguration()

@@ -71,7 +71,7 @@ class ValuationAction {
                     if (eligible && reactor.roles.cache.has(config.director_role_id)) {
                         /** Check if treasury emoji has a value set and if the message that has been reacted to is an elevated one **/
                         if (treasuryValuations[messageReaction._emoji.id].value > 0) {
-                            API.request("http://api:8081/api/elevation/findOne", {
+                            API.request("http://api-TEMPLATE:8081/api/elevation/findOne", {
                                 newMessageId: messageReaction.message.id
                             }, "POST").then(async elevationResponse => {
                                 const elevatedMessage = elevationResponse.data
@@ -147,7 +147,7 @@ class ValuationAction {
                                 }
 
                                 /** Check if valuation already exists, send a dm if already valuated and remove the reaction **/
-                                API.request("http://api:8081/api/valuation/findOne", {
+                                API.request("http://api-TEMPLATE:8081/api/valuation/findOne", {
                                     messageId: insertValuationData.messageId,
                                     discordEmojiId: messageReaction._emoji.id,
                                     treasuryId: insertValuationData.treasuryId
@@ -155,7 +155,7 @@ class ValuationAction {
                                     const valuatedMessage = response.data
 
                                     if (!valuatedMessage.id) {
-                                        API.request("http://api:8081/api/valuation/insert", insertValuationData, "POST").then(async response => {
+                                        API.request("http://api-TEMPLATE:8081/api/valuation/insert", insertValuationData, "POST").then(async response => {
                                             if (response.data.message) {
                                                 guild.members.fetch(insertValuationData.userId).then(author => {
                                                     author.send(response.data.message).catch(err => {
@@ -238,7 +238,7 @@ ${messageReaction.message.url}`)
                     if (eligible && reactor.roles.cache.has(config.director_role_id)) {
                         /** Check if treasury emoji has a value set and if the message that has been reacted to is an elevated one **/
                         if (treasuryValuations[messageReaction._emoji.id].value > 0) {
-                            API.request("http://api:8081/api/elevation/findOne", {
+                            API.request("http://api-TEMPLATE:8081/api/elevation/findOne", {
                                 newMessageId: messageReaction.message.id
                             }, "POST").then(async elevationResponse => {
                                 const elevatedMessage = elevationResponse.data
@@ -252,7 +252,7 @@ ${messageReaction.message.url}`)
                                 }
 
                                 /** Check if valuation exists **/
-                                API.request("http://api:8081/api/valuation/findOne", {
+                                API.request("http://api-TEMPLATE:8081/api/valuation/findOne", {
                                     messageId: messageId,
                                     discordEmojiId: messageReaction._emoji.id,
                                     treasuryId: treasuryValuations[messageReaction._emoji.id].treasuryId
@@ -260,7 +260,7 @@ ${messageReaction.message.url}`)
                                     const valuatedMessage = response.data
 
                                     if (valuatedMessage.id && valuatedMessage.status != 2) {
-                                        API.request(`http://api:8081/api/valuation/delete/${valuatedMessage.id}`, null, 'DELETE').then(async response => {
+                                        API.request(`http://api-TEMPLATE:8081/api/valuation/delete/${valuatedMessage.id}`, null, 'DELETE').then(async response => {
                                             let emoji = await this.client.emojis.cache.get(messageReaction._emoji.id)
 
 		                                    this.client.log(`Valuation: Message valuation of ${valuatedMessage.value} ${treasuryValuations[messageReaction._emoji.id].coinName} <:${emoji.identifier}> has been removed by ${reactor.user.username}

@@ -41,7 +41,7 @@ class NormalElevationAction {
 
         let elevate = false
         let elevationChannelId = config.news_elevation_channel_id
-        let elevationTitle = "Top Story 🔥"
+        let elevationTitle = "Special Delivery"
 
 		/** Only elevate from news or content channels **/
 		let channelId = messageReaction.message.channelId
@@ -55,7 +55,7 @@ class NormalElevationAction {
         } else if (config.content_channel_ids.includes(channelId)) {
             elevate = true
             elevationChannelId = config.content_elevation_channel_id
-            elevationTitle = "Top Content 🔥"
+            elevationTitle = "Special Delivery"
         }
 
         /** Check if message is eligible to be elevated **/
@@ -70,7 +70,7 @@ class NormalElevationAction {
 
         if (reactionCount >= config.elevation_required_emojis) {
             /** Check if message has already been valuated, if already elevated do nothing **/
-            API.request("http://api:8081/api/elevation/find", [
+            API.request("http://api-TEMPLATE:8081/api/elevation/find", [
                 {
                     oldMessageId: messageReaction.message.id,
                     newChannelId: elevationChannelId
@@ -105,7 +105,7 @@ class NormalElevationAction {
                     }
 
 					/** Submit elevation to API **/
-                    await API.request("http://api:8081/api/elevation/insert", {
+                    await API.request("http://api-TEMPLATE:8081/api/elevation/insert", {
                         oldChannelId: messageReaction.message.channelId,
                         oldMessageId: messageReaction.message.id,
                         newChannelId: elevationChannelId,
