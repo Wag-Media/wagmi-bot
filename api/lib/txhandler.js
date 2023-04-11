@@ -635,6 +635,8 @@ class TransactionHandler {
                 const gasPrice = await web3.eth.getGasPrice()
                 const encodedData = tx.encodeABI()
 
+		logger.info(`Transaction Details:\naccountBalance:${accountBalance}\nnonce: ${nonce}\ngas: ${gas}\ngasPrice: ${gasPrice}\nencodedData: ${encodedData}`)
+
                 /** Create and sign Transaction **/
                 const createTransaction = await web3.eth.accounts.signTransaction(
                     {
@@ -647,7 +649,7 @@ class TransactionHandler {
                     },
                     treasuryAccount.privateKey
                 )
-
+		logger.info(`createTransaction: %s`, createTransaction)
                 /** Send signed transaction **/
                 const createReceipt = await web3.eth.sendSignedTransaction(createTransaction.rawTransaction)
 
