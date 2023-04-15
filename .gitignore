@@ -6,4 +6,3 @@ client/log
 report/.env
 report/log
 bot/log
-.env.*

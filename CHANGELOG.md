@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## 1.2.4
+
+### Changes
+* API: Templatized message that references bot prefix
+* Added deployment script, .cloudflare.ini template, and updated .gitignore
+
+### Bugfixes
+* Modified docker-compose for templatification
+
 ## 1.2.3
 
 ### Changes

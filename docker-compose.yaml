@@ -1,7 +1,7 @@
 version: "3.5"
 services:
-    certbot-${PROJECT_SHORT_NAME}:
-        container_name: certbot-${PROJECT_SHORT_NAME}
+    certbot-TEMPLATE:
+        container_name: certbot-TEMPLATE
         image: certbot/dns-cloudflare
         volumes:
             - ./certbot_etc:/etc/letsencrypt:rw
@@ -14,14 +14,14 @@ services:
               certonly --dns-cloudflare
               --dns-cloudflare-credentials /root/.cloudflare.ini
               --dns-cloudflare-propagation-seconds 15
-              --email 0xtaylor@thechaosdao.com
+              --email ${CLOUDFLARE_EMAIL}
               --agree-tos --no-eff-email
               --keep-until-expiring
-              -d ${DOMAIN}
-              -d admin.${DOMAIN}
+              -d ${FQDN}
+              -d admin.${FQDN}
 
-    db-${PROJECT_SHORT_NAME}:
-        container_name: db-${PROJECT_SHORT_NAME}
+    db-TEMPLATE:
+        container_name: db-TEMPLATE
         image: mariadb:10.5.16
         restart: always
         command: --default-authentication-plugin=mysql_native_password
@@ -33,8 +33,8 @@ services:
         volumes:
             - ./mysql/setup.sql:/docker-entrypoint-initdb.d/setup.sql:ro
             - ./volumes/db/data:/var/lib/mysql:rw
-    api-${PROJECT_SHORT_NAME}:
-        container_name: api-${PROJECT_SHORT_NAME}
+    api-TEMPLATE:
+        container_name: api-TEMPLATE
         build: ./api
         restart: always
         environment:
@@ -55,11 +55,11 @@ services:
             BOT_TOKEN: ${BOT_TOKEN}
             BOT_GUILD_ID: ${BOT_GUILD_ID}
         depends_on:
-            - db-${PROJECT_SHORT_NAME}
+            - db-TEMPLATE
         volumes:
             - ./api:/app
-    bot-${PROJECT_SHORT_NAME}:
-        container_name: bot-${PROJECT_SHORT_NAME}
+    bot-TEMPLATE:
+        container_name: bot-TEMPLATE
         build: ./bot
         restart: always
         environment:
@@ -69,12 +69,12 @@ services:
             BOT_GUILD_ID: ${BOT_GUILD_ID}
             BOT_PREFIX: ${BOT_PREFIX}
         depends_on:
-            - db-${PROJECT_SHORT_NAME}
-            - api-${PROJECT_SHORT_NAME}
+            - db-TEMPLATE
+            - api-TEMPLATE
         volumes:
             - ./bot:/app
-    client-${PROJECT_SHORT_NAME}:
-        container_name: client-${PROJECT_SHORT_NAME}
+    client-TEMPLATE:
+        container_name: client-TEMPLATE
         build: ./client
         restart: always
         ports:
@@ -86,14 +86,14 @@ services:
             - ./client/cache:/var/cache/nginx/proxy_temp:rw
             - ./certbot_etc:/etc/letsencrypt:ro
         depends_on:
-            - api-${PROJECT_SHORT_NAME}
-            - bot-${PROJECT_SHORT_NAME}
-    report-${PROJECT_SHORT_NAME}:
-        container_name: report-${PROJECT_SHORT_NAME}
+            - api-TEMPLATE
+            - bot-TEMPLATE
+    report-TEMPLATE:
+        container_name: report-TEMPLATE
         build: ./report
         restart: always
         ports:
-            - 0.0.0.0:8443:8082
+            - 0.0.0.0:${REPORT_PORT}:8082
         volumes:
             - ./report/dist:/usr/share/nginx/html
             - /var/log/wag/report:/var/log/nginx:rw
@@ -104,12 +104,12 @@ services:
             - ./report/conf/modsec:/etc/nginx/modsec:ro
             - ./report/conf/owasp/crs-setup.conf:/usr/local/owasp-modsecurity-crs/crs-setup.conf:ro
         depends_on:
-            - api-${PROJECT_SHORT_NAME}
+            - api-TEMPLATE
         dns:
             - 1.1.1.1
             - 1.0.0.1
-#   phpmyadmin-${PROJECT_SHORT_NAME}:
-#       container_name: phpmyadmin-${PROJECT_SHORT_NAME}
+#   phpmyadmin-TEMPLATE:
+#       container_name: phpmyadmin-TEMPLATE
 #       image: phpmyadmin/phpmyadmin:latest
 #       depends_on:
 #          - db
