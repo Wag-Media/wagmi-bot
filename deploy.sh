@@ -35,7 +35,7 @@ sed -i "s/__FQDN__/${__FQDN__}/g" ${__START_DIR__}/.env ${__START_DIR__}/docker-
 sed -iE "s/TEMPLATE/${__SHORTNAME__}/g;" $__START_DIR__/docker-compose.yaml
 
 # Script that only runs on first execution
-if [ FIRST_RUN -eq "0" ]; then
+if [ $FIRST_RUN -eq "0" ]; then
 
     export NVM_DIR=$HOME/.nvm;
     source $NVM_DIR/nvm.sh;
@@ -56,7 +56,7 @@ fi
 sed -i "s/WAG Media Bot/${__2FANAME__}/" ${__START_DIR__}/api/2fa.js
 
 # Recursive grep research for the keyword TEMPLATE in all directories excluding this file and node_modules and only print the filename
-if [ test "$(grep -r TEMPLATE * --exclude-dir=node_modules --exclude=deploy.sh -l)" ]; then
+if [ "$(grep -r TEMPLATE * --exclude-dir=node_modules --exclude=deploy.sh -l)" ]; then
 
     # Find all affected file names and replace all instances of TEMPLATE with the shortname for each file
     grep -r TEMPLATE * --exclude-dir=node_modules --exclude=deploy.sh -l | sort -u | xargs sed -i "s/TEMPLATE/${__SHORTNAME__}/g"
