@@ -10,7 +10,7 @@ FIRST_RUN=0
 __2FANAME__=""
 __SHORTNAME__=""
 __FQDN__=""
-__BOTPREFIX__='!toolme'
+__BOTPREFIX__='toolme' # Don't include bang (!) in prefix
 __START_DIR__="${PWD}"
 __CLOUDFLARE_EMAIL__=""
 __ADMINPORT__=""
@@ -95,20 +95,22 @@ fi
 
 # Replace all environment variables in .env file
 sed -i -E "
+s/__2FA_KEY__/${__2FA_KEY__}/;
+s/__ADMINPORT__/${__ADMINPORT__}/;
 s/__APIKEY__/$(openssl rand -hex 14)/;
 s/__APISESSION__/$(openssl rand -hex 14)/;
-s/__ADMINPORT__/${__ADMINPORT__}/;
-s/__REPORTPORT__/${__REPORTPORT__}/;
-s/__2FA_KEY__/${__2FA_KEY__}/;
-s/__GUILDID__/${__GUILDID__}/;
-s/__BOTTOKEN__/${__BOTTOKEN__}/;
-s/__DISCORDCLIENTID__/${__DISCORDCLIENTID__}/;
-s/__DISCORDCLIENTSECRET__/${__DISCORDCLIENTSECRET__}/;
 s/__AUTHORIZEDDISCORDIDS__/${__AUTHORIZEDDISCORDIDS__}/;
+s/__BOTPREFIX__/${__BOTPREFIX__}/
+s/__BOTTOKEN__/${__BOTTOKEN__}/;
 s/__CLOUDFLARE_EMAIL__/${__CLOUDFLARE_EMAIL__}/;
 s/__DBROOTPASSWD__/$(openssl rand -hex 16)/;
 s/__DBUSERPASSWD__/$(openssl rand -hex 16)/;
-s/TEMPLATE/${__SHORTNAME__}/g;" $__START_DIR__/.env
+s/__DISCORDCLIENTID__/${__DISCORDCLIENTID__}/;
+s/__DISCORDCLIENTSECRET__/${__DISCORDCLIENTSECRET__}/;
+s/__GUILDID__/${__GUILDID__}/;
+s/__REPORTPORT__/${__REPORTPORT__}/;
+s/TEMPLATE/${__SHORTNAME__}/g;
+" $__START_DIR__/.env
 
 
 cd $__START_DIR__/api;
