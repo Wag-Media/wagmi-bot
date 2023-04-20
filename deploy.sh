@@ -43,11 +43,8 @@ if [ $FIRST_RUN -eq "0" ]; then
     nvm install 16.15.1
     nvm use 16.15.1
 
-    # Need to check if there are package-lock.json files in the directories
-    if [ test "$(find . -name 'package-lock.json' -print -quit)" ]; then
-        echo "package-lock.json files found. Removing them."
-     find * -name 'package-lock.json'|xargs rm
-    fi
+    # Delete any residual cache data on first run
+    find * -name 'package-lock.json' -o -name node_modules|xargs rm -rf
 
     sed -i 's/FIRST_RUN=0/FIRST_RUN=1/' ${__START_DIR__}/deploy.sh
 fi
