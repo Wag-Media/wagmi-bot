@@ -24,6 +24,7 @@ __AUTHORIZEDDISCORDIDS__="" # Comma separated list of Discord IDs
 
 # Copy .env.TEMPLATE to .env
 cp ${__START_DIR__}/.env.TEMPLATE ${__START_DIR__}/.env
+cp ${__START_DIR__}/docker-compose.yaml.TEMPLATE ${__START_DIR__}/docker-compose.yaml
 
 # Fixes bot prefix (!wagmi) in valuation.js messages
 sed -i "s/__BOTPREFIX__/${__BOTPREFIX__}/g" ${__START_DIR__}/api/controller/valuation.js
