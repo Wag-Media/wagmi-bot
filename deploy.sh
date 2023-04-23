@@ -47,6 +47,48 @@ if [ $FIRST_RUN -eq "0" ]; then
     # Delete any residual cache data on first run
     find * -name 'package-lock.json' -o -name node_modules|xargs rm -rf
 
+    #!/bin/bash
+
+    # Replace these with your own values
+    api_token=""
+    zone_id=""
+    ip_address=""
+
+    # List of domain names
+    domain_names=("__FQDN__" "admin.__FQDN__")
+
+    for domain_name in "${domain_names[@]}"; do
+    # Set API URL
+    api_url="https://api.cloudflare.com/client/v4/zones/${zone_id}/dns_records"
+
+    # Set DNS record data
+    data=$(cat <<EOF
+    {
+    "type": "A",
+    "name": "${domain_name}",
+    "content": "${ip_address}",
+    "ttl": 120,
+    "proxied": false
+    }
+    EOF
+    )
+
+    # Send POST request to create the A record
+    response=$(curl -s -X POST "$api_url" \
+        -H "Authorization: Bearer $api_token" \
+        -H "Content-Type: application/json" \
+        --data "$data")
+
+    success=$(echo "$response" | grep -Eo '"success":(true|false)' | cut -d: -f2)
+
+    if [ "$success" == "true" ]; then
+        echo "DNS A record created successfully for $domain_name"
+    else
+        echo "Error creating DNS A record for $domain_name"
+        echo "Response: $response"
+    fi
+    done
+
     sed -i 's/FIRST_RUN=0/FIRST_RUN=1/' ${__START_DIR__}/deploy.sh
 fi
 
