@@ -8,15 +8,15 @@ FIRST_RUN=0
 
 ## Need to fill this out
 __2FANAME__=""
-__SHORTNAME__=""
-__FQDN__=""
+__FQDN__="example.com" # The full-qualified domain name.
+__SHORTNAME__="${__FQDN__%%.*}"
 __BOTPREFIX__='toolme' # Don't include bang (!) in prefix
 __START_DIR__="${PWD}"
 __CLOUDFLARE_EMAIL__=""
 __ADMINPORT__=""
 __REPORTPORT__=""
 
-__GUILDID__="" # Guide ID
+__GUILDID__="" # Guild ID
 __BOTTOKEN__="" # Discord Bot Token
 __DISCORDCLIENTID__="" # Discord Application Client ID
 __DISCORDCLIENTSECRET__="" # Discord Application Client Secret
@@ -47,32 +47,40 @@ if [ $FIRST_RUN -eq "0" ]; then
     # Delete any residual cache data on first run
     find * -name 'package-lock.json' -o -name node_modules|xargs rm -rf
 
-    #!/bin/bash
+    if [ ! -f ${__START_DIR__}/certbot_etc/dhparam.pem ]; then
+        if [ ! -d ${__START_DIR__}/certbot_etc ]; then 
+            mkdir ${__START_DIR__}/certbot_etc
+        fi
+        openssl dhparam -out ${__START_DIR__}/certbot_etc/dhparam.pem 2048
+    fi
+
 
     # Replace these with your own values
-    api_token=""
-    zone_id=""
-    ip_address=""
+    api_token="$(cat .cloudflare.ini |cut -d ' ' -f3)"
+    ip_address="$(curl -s https://api.ipify.org)"
 
     # List of domain names
-    domain_names=("__FQDN__" "admin.__FQDN__")
-
+    domain_names=("${__FQDN__}" "admin.${__FQDN__}")
+    root_domain_name=$(echo $__FQDN__|sed -E 's/\w+\.//')
+    # Function to get zone_id for a domain
+    get_zone_id() {
+        local domain="$1"
+        local zones_url="https://api.cloudflare.com/client/v4/zones?name=${domain}"
+        local response=$(curl -s -X GET "$zones_url" \
+            -H "Authorization: Bearer $api_token" \
+            -H "Content-Type: application/json")
+        echo "$response" | grep -Eo '"id":"[a-z0-9]{32}'|sed 's/"id":"//'|head -n 1
+    }
+    # Get zone_id for the domain
+    zone_id=$(get_zone_id "$root_domain_name")
+    
     for domain_name in "${domain_names[@]}"; do
     # Set API URL
     api_url="https://api.cloudflare.com/client/v4/zones/${zone_id}/dns_records"
 
     # Set DNS record data
-    data=$(cat <<EOF
-    {
-    "type": "A",
-    "name": "${domain_name}",
-    "content": "${ip_address}",
-    "ttl": 120,
-    "proxied": false
-    }
-    EOF
-    )
-
+    data=$(printf '{"type":"A","name":"%s","content":"%s","ttl":120,"proxied":false}' "$domain_name" "$ip_address")
+    
     # Send POST request to create the A record
     response=$(curl -s -X POST "$api_url" \
         -H "Authorization: Bearer $api_token" \
