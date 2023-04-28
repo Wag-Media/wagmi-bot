@@ -9,18 +9,19 @@ FIRST_RUN=0
 ## Need to fill this out
 __2FANAME__=""
 __FQDN__="example.com" # The full-qualified domain name.
-__SHORTNAME__="${__FQDN__%%.*}"
 __BOTPREFIX__='toolme' # Don't include bang (!) in prefix
-__START_DIR__="${PWD}"
 __CLOUDFLARE_EMAIL__=""
 __ADMINPORT__=""
 __REPORTPORT__=""
-
 __GUILDID__="" # Guild ID
 __BOTTOKEN__="" # Discord Bot Token
 __DISCORDCLIENTID__="" # Discord Application Client ID
 __DISCORDCLIENTSECRET__="" # Discord Application Client Secret
 __AUTHORIZEDDISCORDIDS__="" # Comma separated list of Discord IDs
+
+# Leave these alone
+__SHORTNAME__="${__FQDN__%%.*}" # This isolates the first part of the FQDN (everything to the right of the first dot is dropped)
+__START_DIR__="${PWD}"
 
 # Copy .env.TEMPLATE to .env
 cp ${__START_DIR__}/.env.TEMPLATE ${__START_DIR__}/.env
