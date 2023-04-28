@@ -48,11 +48,11 @@ if [ $FIRST_RUN -eq "0" ]; then
     # Delete any residual cache data on first run
     find * -name 'package-lock.json' -o -name node_modules|xargs rm -rf
 
-    if [ ! -f ${__START_DIR__}/certbot_etc/dhparam.pem ]; then
+    if [ ! -f ${__START_DIR__}/certbot_etc/ssl-dhparams.pem ]; then
         if [ ! -d ${__START_DIR__}/certbot_etc ]; then 
             mkdir ${__START_DIR__}/certbot_etc
         fi
-        openssl dhparam -out ${__START_DIR__}/certbot_etc/dhparam.pem 2048
+        openssl dhparam -out ${__START_DIR__}/certbot_etc/ssl-dhparams.pem 2048
     fi
 
 
