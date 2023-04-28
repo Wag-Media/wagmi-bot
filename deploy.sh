@@ -30,7 +30,7 @@ cp ${__START_DIR__}/docker-compose.yaml.TEMPLATE ${__START_DIR__}/docker-compose
 sed -i "s/__BOTPREFIX__/${__BOTPREFIX__}/g" ${__START_DIR__}/api/controller/valuation.js
 
 # Fixes FQDN in .env and docker-compose.yaml
-sed -i "s/__FQDN__/${__FQDN__}/g" ${__START_DIR__}/.env ${__START_DIR__}/docker-compose.yaml
+sed -i "s/__FQDN__/${__FQDN__}/g" ${__START_DIR__}/.env ${__START_DIR__}/docker-compose.yaml ${__START_DIR__}/client/nginx/default.conf ${__START_DIR__}/report/conf/nginx/conf.d/default.conf
 
 # Replace TEMPLATE with __SHORTNAME__ in docker-compose.yaml
 sed -iE "s/TEMPLATE/${__SHORTNAME__}/g;" $__START_DIR__/docker-compose.yaml
