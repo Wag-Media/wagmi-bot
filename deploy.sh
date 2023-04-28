@@ -166,18 +166,23 @@ cd $__START_DIR__/api;
 if [ ! -d "node_modules" ]; then
     npm i
 fi
-# Generate 2FA key and write to 2fa.tmp in the root directory of the stack
-node ./2fa.js| grep -E '(qr|secret):'|sed -E "s/\s+(qr|secret): '//; s/',?//" > $__START_DIR__/2fa.tmp
 
-__2FA_KEY__="$(grep -v 'https' $__START_DIR__/2fa.tmp)" # Launch ./api/2fa.js first
 
-if [ -n "$__2FA_KEY__" ]; then
-    sed -iE "s/__2FA_KEY__/${__2FA_KEY__}/;" $__START_DIR__/.env
-    echo "The qr code is:" $(grep 'https' $__START_DIR__/2fa.tmp)
-else
-    echo "2FA Key not found."
+if [ $FIRST_RUN -eq "0" ]; then
+
+    # Generate 2FA key and write to 2fa.tmp in the root directory of the stack
+    node ./2fa.js| grep -E '(qr|secret):'|sed -E "s/\s+(qr|secret): '//; s/',?//" > $__START_DIR__/2fa.tmp
+
+    __2FA_KEY__="$(grep -v 'https' $__START_DIR__/2fa.tmp)" # Launch ./api/2fa.js first
+
+    if [ -n "$__2FA_KEY__" ]; then
+        sed -iE "s/__2FA_KEY__/${__2FA_KEY__}/;" $__START_DIR__/.env
+        echo "The qr code is:" $(grep 'https' $__START_DIR__/2fa.tmp)
+    else
+        echo "2FA Key not found."
+    fi
+
 fi
-
 
 # cd to the bot directory and check if node_modules exists, if not install the modules
 cd $__START_DIR__/bot;
