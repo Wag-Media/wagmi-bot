@@ -84,6 +84,18 @@ client.once("ready", async () => {
 	await client.user.setActivity("Verify in #front-desk")
 })
 
+client.on("guildCreate", async (joinedGuild) => {
+	// Check if the joined guild's ID matches the BOT_GUILD_ID from the environment variable
+	if (joinedGuild.id !== process.env.BOT_GUILD_ID) {
+	  try {
+		await joinedGuild.leave();
+		//logger.info(`Bot left the guild with ID: ${joinedGuild.id}`);
+	  } catch (error) {
+		logger.error(`Error leaving the guild with ID: ${joinedGuild.id}`, error);
+	  }
+	}
+  });
+
 /** Load "actions" and initialize them **/
 const actionsPath = path.join(__dirname, 'actions');
 const actionFiles = fs.readdirSync(actionsPath).filter(file => file.endsWith('.js'));
