@@ -82,205 +82,175 @@ class TransactionHandler {
         this.failedTreasuries = []
 
         /** Get all valuated messages and royalties to process **/
-        let [valuatedMessages] = await sql.query(`SELECT valuation.*, user.evmAddress, user.substrateAddress, treasury.coinName, treasury.name, treasury.type, treasury.rpcUrl, treasury.chainPrefix, treasury.mnemonic, treasury.isNative, treasury.parachainType, treasury.tokenAddress, treasury.tokenDecimals, treasury.chainOptions, treasury.privateKey, treasury.royaltyEnabled, treasury.royaltyAddress, treasury.royaltyPercentage, treasury.assetId, treasury.sendMinBalance, treasury.sendExistentialDeposit FROM valuation LEFT JOIN treasury ON (treasury.id = valuation.treasuryId) LEFT JOIN user ON (user.id = valuation.userId) WHERE valuation.transactionHash IS NULL AND valuation.treasuryId = ? ORDER BY valuation.timestamp ASC`, [this.treasuryId])
-        let [royalties] = await sql.query(`SELECT valuation.*, treasury.coinName, treasury.name, treasury.type, treasury.rpcUrl, treasury.chainPrefix, treasury.mnemonic, treasury.isNative, treasury.parachainType, treasury.tokenAddress, treasury.tokenDecimals, treasury.chainOptions, treasury.privateKey, treasury.royaltyEnabled, treasury.royaltyAddress, treasury.royaltyPercentage, treasury.assetId, treasury.sendMinBalance, treasury.sendExistentialDeposit FROM valuation LEFT JOIN treasury ON (treasury.id = valuation.treasuryId) WHERE valuation.royaltyValue IS NOT NULL AND valuation.royaltyTransactionHash IS NULL AND valuation.treasuryId = ? ORDER BY valuation.timestamp ASC`, [this.treasuryId])
-
-        this.currentTransactionTotal = valuatedMessages.length + royalties.length
-
-        /** Return amount of actions to process to give client feedback **/
-        this.currentIo.emit('processing', { current: this.currentTransactionIndex, total: this.currentTransactionTotal })
-
-        /** Handle valuated messages **/
-        if (valuatedMessages.length > 0) {
-            await this.handleValuatedMessages(valuatedMessages)
-        }
-
-        /** Handle royalties of valuated messages **/
-        if (royalties.length > 0) {
-            await this.handleRoyalties(royalties)
-        }
-
-        this.isRunning = false
-        this.encryptionKey = null
-        this.currentIo.emit('processed')
+        let [valuatedMessages] = await sql.query(`
+            SELECT valuation.*, user.evmAddress, user.substrateAddress, treasury.coinName, treasury.name, treasury.type, treasury.rpcUrl, treasury.chainPrefix, treasury.mnemonic, treasury.isNative, treasury.parachainType, treasury.tokenAddress, treasury.tokenDecimals, treasury.chainOptions, treasury.privateKey, treasury.royaltyEnabled, treasury.royaltyAddress, treasury.royaltyPercentage, treasury.assetId, treasury.sendMinBalance, treasury.sendExistentialDeposit 
+            FROM valuation 
+            LEFT JOIN treasury ON (treasury.id = valuation.treasuryId) 
+            LEFT JOIN user ON (user.id = valuation.userId) 
+            WHERE valuation.transactionHash IS NULL AND valuation.treasuryId = ? ORDER BY valuation.timestamp ASC`, [this.treasuryId]);
+    
+        let [royalties] = await sql.query(`
+            SELECT valuation.*, treasury.coinName, treasury.name, treasury.type, treasury.rpcUrl, treasury.chainPrefix, treasury.mnemonic, treasury.isNative, treasury.parachainType, treasury.tokenAddress, treasury.tokenDecimals, treasury.chainOptions, treasury.privateKey, treasury.royaltyEnabled, treasury.royaltyAddress, treasury.royaltyPercentage, treasury.assetId, treasury.sendMinBalance, treasury.sendExistentialDeposit 
+            FROM valuation 
+            LEFT JOIN treasury ON (treasury.id = valuation.treasuryId) 
+            WHERE valuation.royaltyValue IS NOT NULL AND valuation.royaltyTransactionHash IS NULL AND valuation.treasuryId = ? ORDER BY valuation.timestamp ASC`, [this.treasuryId]);
+    
+        // Aggregate valuated messages by user and treasury ID
+        let aggregatedMessages = this.aggregateValuatedMessages(valuatedMessages);
+    
+        // Aggregate royalties by treasury ID
+        //let aggregatedRoyalties = this.aggregateRoyalties(royalties);
+    
+        // Process aggregated valuated messages
+        await this.processAggregatedMessages(aggregatedMessages);
+    
+        // Process aggregated royalties
+        //await this.processAggregatedRoyalties(aggregatedRoyalties);
+    
+        // Assuming currentTransactionTotal reflects the number of transactions to process
+        this.currentTransactionTotal = Object.keys(aggregatedMessages).length;
+    
+        /** Emit processing status update **/
+        this.currentIo.emit('processing', { current: this.currentTransactionIndex, total: this.currentTransactionTotal });
+    
+        this.isRunning = false;
+        this.encryptionKey = null;
+        this.currentIo.emit('processed');
     }
 
     /**
-     * Handle transactions for valuated messages
+     * Aggregates valuated messages by user and treasury ID.
      * 
-     * @param rows - entities to be processed
+     * @param valuatedMessages - Array of valuated message objects to be aggregated.
+     * @returns {Object} - Aggregated messages keyed by a unique combination of userId and treasuryId.
      */
-    async handleValuatedMessages(rows) {
-        logger.info(`Transaction Handler: Handling %d message valuations`, rows.length)
+    aggregateValuatedMessages(valuatedMessages) {
+        let aggregated = {};
 
-        let userAggregations = {}
+        // Iterate over each valuated message to aggregate them
+        valuatedMessages.forEach(msg => {
+            // Create a unique key for each combination of user and treasury
+            const key = `${msg.userId}-${msg.treasuryId}`;
 
-        for (let row of rows) {
-            if (this.failedTreasuries.includes(row.treasuryId)) continue;
-
-            logger.info(`Transaction Handler: Handling valuation Id %d valuated with %f %s`, row.id, row.value, row.coinName)
-
-            /** Check if receiver has submitted a payout address (pre-validation done by the bot), if not set status = 5 **/
-            if ((row.type === 'substrate' && (row.substrateAddress === null || row.substrateAddress === '')) || (row.type === 'evm' && (row.evmAddress === null || row.evmAddress === ''))) {
-                await sql.execute('UPDATE valuation SET status = 5 WHERE id = ?', [row.id])
-
-                continue
+            // If this is the first message for the key, initialize the aggregation entry
+            if (!aggregated[key]) {
+                aggregated[key] = {
+                    userId: msg.userId,
+                    treasuryId: msg.treasuryId,
+                    messages: [msg.id], // Start with the current message ID
+                    value: msg.value, // Initial total value
+                    // Copy other relevant details from the message
+                    coinName: msg.coinName,
+                    type: msg.type,
+                    substrateAddress: msg.substrateAddress,
+                    evmAddress: msg.evmAddress,
+                    chainOptions: msg.chainOptions ? (typeof msg.chainOptions === 'string' ? JSON.parse(msg.chainOptions) : msg.chainOptions) : {},
+                    mnemonic: msg.mnemonic,
+                    isNative: msg.isNative,
+                    parachainType: msg.parachainType,
+                    tokenAddress: msg.tokenAddress,
+                    tokenDecimals: msg.tokenDecimals,
+                    rpcUrl: msg.rpcUrl,
+                    chainPrefix: msg.chainPrefix,
+                    privateKey: msg.privateKey,
+                    royaltyEnabled: msg.royaltyEnabled,
+                    royaltyAddress: msg.royaltyAddress,
+                    royaltyPercentage: msg.royaltyPercentage,
+                    assetId: msg.assetId,
+                    sendMinBalance: msg.sendMinBalance,
+                    sendExistentialDeposit: msg.sendExistentialDeposit
+                };
+            } else {
+                // For existing keys, update totalValue and append message ID
+                aggregated[key].value += msg.value;
+                aggregated[key].messages.push(msg.id);
             }
+            // Log the aggregation process for debugging
+            logger.debug(`Aggregating message for key ${key}: `, aggregated[key]);
+        });
 
-            try {
-                if (row.type === 'substrate') {
-                    /** Process Substrate Transaction */
-                    let { transactionHash, minBalanceBumped, sentExistentialDeposit } = await this.submitSubstrateTransaction(row).catch(e => { throw e })
-
-                    if (transactionHash !== null) {
-                        /** Main Transaction successful; set status = 2, save txHash and timestamp and set flags if the balance has been bumped to minBalance and if existential deposit balance has been sent  **/
-                        await sql.execute('UPDATE valuation SET status = ?, transactionHash = ?, transactionTimestamp = ?, minBalanceBumped = ?, sentExistentialDeposit = ? WHERE id = ?', [2, transactionHash, Math.floor(Date.now() / 1000), minBalanceBumped, sentExistentialDeposit, row.id])
-
-                        let address = polkadotUtil.encodeAddress(row.substrateAddress, row.chainPrefix)
-
-                        if (!(row.userId in userAggregations)) {
-                            userAggregations[row.userId] = {}
-                        }
-
-                        if (!(row.treasuryId in userAggregations[row.userId])) {
-                            userAggregations[row.userId][row.treasuryId] = {
-                                coinName: row.coinName,
-                                value: 0,
-                                address
-                            }
-                        }
-
-                        userAggregations[row.userId][row.treasuryId].value += row.value
-
-                        logger.info('Transaction Handler: Transaction for valuation Id %d submitted: %s', row.id, transactionHash)
-                    }
-                } else {
-                    /** Process EVM Transaction **/
-                    let transactionHash = await this.submitEVMTransaction(row).catch(e => { throw e })
-
-                    if (transactionHash !== null) {
-                        /** Main Transaction successful; set status = 2, save txHash and timestamp **/
-                        await sql.execute('UPDATE valuation SET status = ?, transactionHash = ?, transactionTimestamp = ? WHERE id = ?', [2, transactionHash, Math.floor(Date.now() / 1000), row.id])
-
-                        if (!(row.userId in userAggregations)) {
-                            userAggregations[row.userId] = {}
-                        }
-
-                        if (!(row.treasuryId in userAggregations[row.userId])) {
-                            userAggregations[row.userId][row.treasuryId] = {
-                                coinName: row.coinName,
-                                value: 0,
-                                address: row.evmAddress
-                            }
-                        }
-
-                        userAggregations[row.userId][row.treasuryId].value += row.value
-
-                        logger.info('Transaction Handler: Transaction for valuation Id %d submitted: %s', row.id, transactionHash)
-                    }
-                }
-            } catch (err) {
-                logger.error("Transaction Handler: Error on processing valuation Id %d: %O", row.id, err)
-
-                /** Something went wrong, set status for given error message **/
-                let status = 4
-                if (err.message) {
-                    if (err.message === "Insufficient Balance") {
-                        status = 3
-                    } else if (err.message === "Insufficient Asset Balance") {
-                        status = 6
-                    } else if (err.message === "Invalid encryption key") {
-                        status = 7
-                    }
-                }
-
-                if (status != 4) {
-                    logger.error("Skipping next transactions for treasury '%s'", row.name)
-                    this.failedTreasuries.push(row.treasuryId)
-                }
-
-                await sql.execute('UPDATE valuation SET status = ? WHERE id = ?', [status, row.id])
-            }
-
-            this.currentTransactionIndex++
-
-            /** Update client transaction process **/
-            this.currentIo.emit('processing', { current: this.currentTransactionIndex, total: this.currentTransactionTotal })
-        }
-
-        /** Send payout information to users */
-        for (const userId in userAggregations) {
-            let payOuts = ['']
-            for (const treasuryId in userAggregations[userId]) {
-                const payOut = userAggregations[userId][treasuryId]
-
-                payOuts.push(`- ${payOut.value} ${payOut.coinName} to address: ${payOut.address}`)
-            }
-
-            botIo.emit('send', {
-                userId: userId,
-                message: 'Your messages have been valuated and submitted:' + payOuts.join("\n")
-            });
-        }
+        return aggregated;
     }
+
+
     /**
-     * Handle transactions for royalties of valuated messages
-     * 
-     * @param rows - entities to be processed
+     * Processes aggregated messages for payouts, handling both Substrate and EVM transactions.
+     * @param {Object} aggregatedMessages - Aggregated messages by user and treasury ID.
      */
-    async handleRoyalties(rows) {
-        logger.info(`Transaction Handler: Handling %d royalties`, rows.length)
-        for (let row of rows) {
-            if (this.failedTreasuries.includes(row.treasuryId)) continue;
+    async processAggregatedMessages(aggregatedMessages) {
+        // Iterate over each aggregated message group
+        for (const [key, aggMsg] of Object.entries(aggregatedMessages)) {
+            let address;
 
-            logger.info(`Transaction Handler: Handling royalty for valuation Id %d`, row.id)
-
-            try {
-                if (row.type === 'substrate') {
-                    /** Process Substrate Transaction */
-                    let { transactionHash, minBalanceBumped, sentExistentialDeposit } = await this.submitSubstrateTransaction(row, true).catch(e => { throw e })
-
-                    /** Main Transaction successful; set royalty status = 2, save royalty txHash and royalty timestamp and set royalty flags if the balance has been bumped to minBalance and if existential deposit balance has been sent  **/
-                    await sql.execute('UPDATE valuation SET royaltyStatus = ?, royaltyTransactionHash = ?,royaltyTransactionTimestamp = ?, royaltyMinBalanceBumped = ?, royaltySentExistentialDeposit = ? WHERE id = ?', [2, transactionHash, Math.floor(Date.now() / 1000), minBalanceBumped, sentExistentialDeposit, row.id])
-                
-                    logger.info('Transaction Handler: Royalty transaction for valuation Id %d submitted: %s', row.id, transactionHash)
-                } else {
-                    /** Process Substrate Transaction */
-                    let transactionHash = await this.submitEVMTransaction(row, true).catch(e => { throw e })
-
-                    /** Main Transaction successful; set royalty status = 2, save royalty txHash and royalty timestamp  **/
-                    await sql.execute('UPDATE valuation SET royaltyStatus = ?, royaltyTransactionHash = ?,royaltyTransactionTimestamp = ? WHERE id = ?', [2, transactionHash, Math.floor(Date.now() / 1000), row.id])
-
-                    logger.info('Transaction Handler: Royalty transaction for valuation Id %d submitted: %s', row.id, transactionHash)
+            // Determine address based on transaction type
+            if (aggMsg.type === 'substrate') {
+                address = aggMsg.substrateAddress;
+                // Skip if substrate address is missing
+                if (!address || address === '') {
+                    logger.warn(`Skipping payout for aggregated group ${key} due to missing Substrate address.`);
+                    await Promise.all(aggMsg.messages.map(msgId => 
+                        sql.execute('UPDATE valuation SET status = 5 WHERE id = ?', [msgId])
+                    ));
+                    continue;
                 }
-            } catch (e) {
-                logger.error("Transaction Handler: Error on processing royalty for valuation Id %d: %O", row.id, err)
-
-                /** Something went wrong, set royalty status for given error message **/
-                let status = 4
-                if (e.message) {
-                    if (e.message === "Insufficient Balance") {
-                        status = 3
-                    } else if (e.message === "Insufficient Asset Balance") {
-                        status = 6
-                    } else if (e.message === "Invalid encryption key") {
-                        status = 7
-                    }
+            } else if (aggMsg.type === 'evm') {
+                address = aggMsg.evmAddress;
+                // Skip if EVM address is missing
+                if (!address || address === '') {
+                    logger.warn(`Skipping payout for aggregated group ${key} due to missing EVM address.`);
+                    await Promise.all(aggMsg.messages.map(msgId => 
+                        sql.execute('UPDATE valuation SET status = 5 WHERE id = ?', [msgId])
+                    ));
+                    continue;
                 }
-
-                if (status != 4) {
-                    logger.error("Skipping next transactions for treasury '%s'", row.name)
-                    this.failedTreasuries.push(row.treasuryId)
-                }
-
-                await sql.execute('UPDATE valuation SET royaltyStatus = ? WHERE id = ?', [status, row.id])
             }
 
-            this.currentTransactionIndex++
-            /** Update client transaction process **/
-            this.currentIo.emit('processing', { current: this.currentTransactionIndex, total: this.currentTransactionTotal })
+            try {
+                let transactionHash, minBalanceBumped, sentExistentialDeposit;
+
+                // Process substrate transactions
+                if (aggMsg.type === 'substrate') {
+                    ({ transactionHash, minBalanceBumped, sentExistentialDeposit } = await this.submitSubstrateTransaction(aggMsg));
+                    // Update database for substrate transactions
+                    await Promise.all(aggMsg.messages.map(msgId => 
+                        sql.execute('UPDATE valuation SET status = ?, transactionHash = ?, transactionTimestamp = ?, minBalanceBumped = ?, sentExistentialDeposit = ? WHERE id = ?', 
+                                    [2, transactionHash, Math.floor(Date.now() / 1000), minBalanceBumped, sentExistentialDeposit, msgId])
+                    ));
+                } else {
+                    // Process EVM transactions
+                    transactionHash = await this.submitEVMTransaction(aggMsg);
+                    // Update database for EVM transactions
+                    await Promise.all(aggMsg.messages.map(async (msgId) => {
+                        logger.info(`Updating valuation record for msgId: ${msgId} with transactionHash: ${transactionHash}`);
+
+                        await sql.execute('UPDATE valuation SET status = ?, transactionHash = ?, transactionTimestamp = ? WHERE id = ?', 
+                                        [2, transactionHash, Math.floor(Date.now() / 1000), msgId]);
+                    }));
+                }
+
+                logger.info(`Transactions for aggregated messages (${key}) submitted: ${transactionHash}`);
+            } catch (error) {
+                // Handle errors and update status accordingly
+                let status = this.determineErrorStatus(error.message);
+                await Promise.all(aggMsg.messages.map(msgId => 
+                    sql.execute('UPDATE valuation SET status = ? WHERE id = ?', [status, msgId])
+                ));
+
+                if (status != 4) {
+                    logger.error(`Skipping next transactions for treasury '${aggMsg.treasuryId}' due to error: ${error.message}`);
+                    this.failedTreasuries.push(aggMsg.treasuryId);
+                }
+
+                logger.error(`Error processing aggregated messages (${key}): ${error}`);
+            }
+
+            // Update processing status
+            this.currentTransactionIndex += aggMsg.messages.length;
+            this.currentIo.emit('processing', { current: this.currentTransactionIndex, total: this.currentTransactionTotal });
         }
     }
+
+
 
     /**
      * Submit a substrate transaction
@@ -296,11 +266,21 @@ class TransactionHandler {
             const keyRing = new Keyring({ type: 'sr25519' })
 
             let options = {}
-            let chainOptions = {}
+            let chainOptions = {};
 
             /** Options need to be specified for specific chains **/
-            if (data.chainOptions !== null && data.chainOptions !== '') {
-                chainOptions = JSON.parse(data.chainOptions)
+            if (data.chainOptions) {
+                if (typeof data.chainOptions === "string" && data.chainOptions !== "null" && data.chainOptions !== "undefined") {
+                    try {
+                        chainOptions = JSON.parse(data.chainOptions);
+                    } catch (e) {
+                        logger.error(`Error processing chain options (${key}): ${e.message || JSON.stringify(e)}`);
+
+                        // Optionally set chainOptions to a default value or keep it as {}
+                    }
+                } else if (typeof data.chainOptions === "object") {
+                    chainOptions = data.chainOptions; // Assuming it's already a properly formatted object
+                }
             }
 
             if (!chainOptions.types) {
@@ -564,43 +544,48 @@ class TransactionHandler {
 
     async submitEVMTransaction(data, royalty = false) {
         try {
+            logger.info(`submitEVMTransaction called with data: ${JSON.stringify(data)} and royalty: ${royalty}`);
+    
             /** Connect to node **/
-            const web3 = new Web3(data.rpcUrl)
+            const web3 = new Web3(data.rpcUrl);
+            logger.info(`Web3 initialized with RPC URL: ${data.rpcUrl}`);
 
             /** Get wallet account decrypting mnemonic saved in database with the encryption key provided by the client **/
-            const treasuryAccount = web3.eth.accounts.privateKeyToAccount(crypto.decrypt(data.privateKey, this.encryptionKey))
+            const decryptedPrivateKey = crypto.decrypt(data.privateKey, this.encryptionKey);
+            const treasuryAccount = web3.eth.accounts.privateKeyToAccount(decryptedPrivateKey);
+            logger.info(`Treasury account loaded: ${treasuryAccount.address}`);
 
-            let value = data.value
+            let value = data.value;
             if (royalty) {
-                /** If it is royalty transaction, use the royaltyValue **/
-                value = data.royaltyValue
+                /** If it is a royalty transaction, use the royaltyValue **/
+                value = data.royaltyValue;
+                logger.info(`Handling as royalty transaction with value: ${value}`);
             } else {
-                /** Otherwise use the normal value and substract the royaltyValue if specified **/
-                if (data.royaltyValue) value -= data.royaltyValue
+                /** Otherwise use the normal value and subtract the royaltyValue if specified **/
+                if (data.royaltyValue) value -= data.royaltyValue;
+                logger.info(`Handling as regular transaction with value: ${value}`);
             }
 
-            /** reeiverAddress defaults to treasury royaltyAddress **/
-            let receiverAddress = data.royaltyAddress
-            if (!royalty) {
-                /** If not a royalty transaction, receiverAddress is any substrate address submitted by the user **/
-                receiverAddress = data.evmAddress
-            }
+            /** ReceiverAddress defaults to treasury royaltyAddress **/
+            let receiverAddress = royalty ? data.royaltyAddress : data.evmAddress;
+            logger.info(`Receiver address determined as: ${receiverAddress}`);
 
             /** Calculate amount to be sent **/
-            const fullAmount = this.convertAmount(value, data.tokenDecimals)
+            const fullAmount = this.convertAmount(value, data.tokenDecimals);
+            logger.info(`Full amount to be sent: ${fullAmount.toString()}`);
 
             if (data.isNative === 1) {
                 /** Native Token **/
+                const balanceFrom = Web3.utils.toBN(await web3.eth.getBalance(treasuryAccount.address));
+                logger.info(`Payout wallet balance: ${balanceFrom.toString()}`);
 
-                /** Get balance of payout wallet **/
-                const balanceFrom = Web3.utils.toBN(await web3.eth.getBalance(treasuryAccount.address))
-
-                /** Not enough balance **/
                 if (fullAmount.gte(balanceFrom)) {
-                    throw new Error(`Insufficient Balance`)
+                    logger.error(`Insufficient Balance to send ${fullAmount.toString()}`);
+                    throw new Error(`Insufficient Balance`);
                 }
-
+                logger.info(`Signing tx`);
                 /** Create and sign Transaction **/
+                
                 const createTransaction = await web3.eth.accounts.signTransaction(
                     {
                         gas: 21000,
@@ -609,10 +594,10 @@ class TransactionHandler {
                     },
                     treasuryAccount.privateKey
                 )
-
+                logger.info(`TX signed`);
                 /** Send signed transaction **/
                 const createReceipt = await web3.eth.sendSignedTransaction(createTransaction.rawTransaction)
-
+                logger.info(`Receipt: ${createReceipt.transactionHash}`);
                 /** Return transactionHash **/
                 return createReceipt.transactionHash
             } else {
@@ -656,14 +641,128 @@ class TransactionHandler {
                 /** Return transactionHash **/
                 return createReceipt.transactionHash
             }
-        } catch (e) {
-            throw e
+        }  catch (e) {
+            logger.error(`Error in submitEVMTransaction: ${e.message}`, e);
+            throw e; // Re-throw the error for further handling
         }
     }
 
-    convertAmount(amount, decimals) {
-        return Web3.utils.toBN("0x" + (amount.toFixed(decimals) * 10 ** decimals).toString(16));
+
+    /**
+     * Handle transactions for royalties of valuated messages
+     * 
+     * @param rows - entities to be processed
+     */
+    async handleRoyalties(rows) {
+        logger.info(`Transaction Handler: Handling %d royalties`, rows.length)
+        for (let row of rows) {
+            if (this.failedTreasuries.includes(row.treasuryId)) continue;
+
+            logger.info(`Transaction Handler: Handling royalty for valuation Id %d`, row.id)
+
+            try {
+                if (row.type === 'substrate') {
+                    /** Process Substrate Transaction */
+                    let { transactionHash, minBalanceBumped, sentExistentialDeposit } = await this.submitSubstrateTransaction(row, true).catch(e => { throw e })
+
+                    /** Main Transaction successful; set royalty status = 2, save royalty txHash and royalty timestamp and set royalty flags if the balance has been bumped to minBalance and if existential deposit balance has been sent  **/
+                    await sql.execute('UPDATE valuation SET royaltyStatus = ?, royaltyTransactionHash = ?,royaltyTransactionTimestamp = ?, royaltyMinBalanceBumped = ?, royaltySentExistentialDeposit = ? WHERE id = ?', [2, transactionHash, Math.floor(Date.now() / 1000), minBalanceBumped, sentExistentialDeposit, row.id])
+                
+                    logger.info('Transaction Handler: Royalty transaction for valuation Id %d submitted: %s', row.id, transactionHash)
+                } else {
+                    /** Process Substrate Transaction */
+                    let transactionHash = await this.submitEVMTransaction(row, true).catch(e => { throw e })
+
+                    /** Main Transaction successful; set royalty status = 2, save royalty txHash and royalty timestamp  **/
+                    await sql.execute('UPDATE valuation SET royaltyStatus = ?, royaltyTransactionHash = ?,royaltyTransactionTimestamp = ? WHERE id = ?', [2, transactionHash, Math.floor(Date.now() / 1000), row.id])
+
+                    logger.info('Transaction Handler: Royalty transaction for valuation Id %d submitted: %s', row.id, transactionHash)
+            }
+        } catch (e) {
+                logger.error("Transaction Handler: Error on processing royalty for valuation Id %d: %O", row.id, err)
+
+                /** Something went wrong, set royalty status for given error message **/
+                let status = 4
+                if (e.message) {
+                    if (e.message === "Insufficient Balance") {
+                        status = 3
+                    } else if (e.message === "Insufficient Asset Balance") {
+                        status = 6
+                    } else if (e.message === "Invalid encryption key") {
+                        status = 7
+                    }
+                }
+
+                if (status != 4) {
+                    logger.error("Skipping next transactions for treasury '%s'", row.name)
+                    this.failedTreasuries.push(row.treasuryId)
+                }
+
+                await sql.execute('UPDATE valuation SET royaltyStatus = ? WHERE id = ?', [status, row.id])
+            }
+
+            this.currentTransactionIndex++
+            /** Update client transaction process **/
+            this.currentIo.emit('processing', { current: this.currentTransactionIndex, total: this.currentTransactionTotal })
+        }
     }
+    
+    /**
+     * Determines the error status code based on the given error message.
+     * This function maps specific error messages to predefined status codes that
+     * represent different types of transaction errors in the system.
+     * 
+     * @param {string} errorMessage - The error message received from an operation.
+     * @returns {number} - The status code corresponding to the type of error.
+     */
+    determineErrorStatus(errorMessage) {
+        switch(errorMessage) {
+            case "Insufficient Balance":
+                // Status code for insufficient balance in the payout wallet.
+                return 3;
+            case "Insufficient Asset Balance":
+                // Status code for insufficient asset balance (e.g., for tokens in a specific blockchain).
+                return 6;
+            case "Invalid encryption key":
+                // Status code for errors related to decryption or encryption key issues.
+                return 7;
+            default:
+                // A general transaction error status code for all other types of errors.
+                return 4;
+        }
+    }
+
+
+        
+    /**
+     * Converts a numeric amount into its smallest unit based on the specified number of decimals.
+     * This is useful for converting currency amounts into a format suitable for blockchain transactions,
+     * where values are often represented in the smallest unit (e.g., Wei for Ethereum).
+     * 
+     * @param {number|string} amount - The amount to convert, which can be a number or a string.
+     * @param {number} decimals - The number of decimal places to consider for the conversion.
+     * @returns {BigNumber} - The amount converted to its smallest unit as a BigNumber.
+     */
+    convertAmount(amount, decimals) {
+        // Convert the amount to a string to ensure accurate representation
+        const amountString = amount.toString();
+        
+        // Split the string into whole and decimal parts
+        let [whole, decimal] = amountString.split('.');
+        
+        // Ensure the decimal part exists. If not, pad it with zeros up to the specified decimals.
+        // Then, truncate or pad the decimal part to ensure it matches the specified decimals length.
+        decimal = (decimal || '').padEnd(decimals, '0').substring(0, decimals);
+        
+        // Combine the whole part and the adjusted decimal part back into a single string
+        const combined = whole + decimal;
+        
+        // Convert the combined string to a BigNumber for accurate arithmetic and return.
+        // This BigNumber represents the amount in its smallest unit (e.g., Wei for ETH).
+        return Web3.utils.toBN(combined);
+    }
+
+    
 }
 
 module.exports = new TransactionHandler()
